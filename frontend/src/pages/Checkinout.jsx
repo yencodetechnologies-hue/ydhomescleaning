@@ -4,7 +4,7 @@ import { FiClock, FiCalendar, FiCheckCircle, FiChevronLeft, FiChevronRight, FiX,
 import AdminLayout from '../components/AdminLayout';
 import { API_BASE_URL } from '../config';
 import './Roomsmanagement.css'; 
-import './checkinout.css'; 
+import './Checkinout.css'; 
 
 export default function CheckInOut() {
   const [currentUser, setCurrentUser] = useState(null);

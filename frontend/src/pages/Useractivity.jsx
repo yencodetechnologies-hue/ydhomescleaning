@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'; // Added for the modal
 import { FiActivity, FiSearch, FiCalendar, FiX, FiChevronLeft, FiChevronRight, FiCamera, FiClock } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import { API_BASE_URL } from '../config';
-import './checkinout.css'; 
+import './Checkinout.css'; 
 import './Useractivity.css';
 
 export default function UserActivity() {
