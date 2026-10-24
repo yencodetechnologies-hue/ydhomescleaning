@@ -6,57 +6,77 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const LINK_SECRET = process.env.ACCESS_LINK_SECRET || process.env.JWT_SECRET;
 
-// --- Helpers for the passwordless access link ---
-const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+// --- Static, deterministic access link ---
+// token = <userId>.<HMAC(userId)>  -> same value every time, nothing stored in the DB
+const sign = (id) =>
+  crypto.createHmac('sha256', LINK_SECRET).update(String(id)).digest('hex');
 
-const generateAccessToken = () => {
-  const token = crypto.randomBytes(32).toString('hex'); // 64 chars, unguessable
-  return { token, hash: hashToken(token) };
+const makeAccessToken = (id) => `${id}.${sign(id)}`;
+
+const buildAccessUrl = (id) => `${FRONTEND_URL}/access/${makeAccessToken(id)}`;
+
+// Returns the user id if the token is valid, otherwise null
+const verifyAccessToken = (token = '') => {
+  const [id, sig] = String(token).split('.');
+  if (!id || !sig) return null;
+
+  const expected = sign(id);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+  return id;
 };
-
-const buildAccessUrl = (token) => `${FRONTEND_URL}/access/${token}`;
 
 // Same payload, secret and expiry as the /auth/login controller
 const signToken = (user) =>
   jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-// GET /api/users - Fetch ONLY standard users
+// GET /api/users - Fetch ONLY standard users, each with their permanent accessUrl
 const getUsers = async (req, res) => {
   try {
-    // Filter applied: ONLY fetch documents where role is 'user'
     const users = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
-    res.status(200).json(users);
+
+    const result = users.map((u) => {
+      const obj = u.toObject();
+      delete obj.accessToken;
+      delete obj.accessTokenHash;
+      obj.accessUrl = buildAccessUrl(u._id);
+      return obj;
+    });
+
+    res.status(200).json(result);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Error fetching users' });
   }
 };
 
-// POST /api/users - Create user & Send Email
+// POST /api/users - Create user & send email
 const createUser = async (req, res) => {
   try {
     const { name, email, phone, password, status } = req.body;
-    const role = 'user'; // Hardcode role to ensure only 'user' types are created here
+    const role = 'user';
 
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'Email already exists' });
 
-    // Generate the unique dashboard access link for this user
-    const { token, hash } = generateAccessToken();
-    const accessUrl = buildAccessUrl(token);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user (password is hashed automatically by User.js pre-save hook)
-    const newUser = await User.create({ 
-      name, 
-      email, 
-      phone, 
-      password, 
-      role, 
-      status: status || 'Active',
-      accessTokenHash: hash
+    const newUser = await User.create({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+      role,
+      status: status || 'Active'
     });
 
-    // --- SEND EMAIL FUNCTIONALITY ---
+    const accessUrl = buildAccessUrl(newUser._id);
+
     try {
       const mail = welcomeEmail({ name, email, password, accessUrl });
       await sendEmail({
@@ -67,14 +87,12 @@ const createUser = async (req, res) => {
       });
     } catch (emailError) {
       console.error('User created, but email failed to send:', emailError.message);
-      // We log the error but don't crash the request, because the user WAS created successfully
     }
-    
-    // Return created user to frontend (accessUrl is shown only once, here)
-    res.status(201).json({ 
-      _id: newUser._id, 
-      name: newUser.name, 
-      email: newUser.email, 
+
+    res.status(201).json({
+      _id: newUser._id,
+      name: newUser.name,
+      email: newUser.email,
       phone: newUser.phone,
       role: newUser.role,
       status: newUser.status,
@@ -82,7 +100,7 @@ const createUser = async (req, res) => {
       accessUrl
     });
   } catch (error) {
-    console.error("ACTUAL CREATE ERROR:", error);
+    console.error('ACTUAL CREATE ERROR:', error);
     res.status(500).json({ message: error.message || 'Error creating user' });
   }
 };
@@ -101,20 +119,20 @@ const updateUser = async (req, res) => {
     if (status) user.status = status;
 
     if (password) {
-      // Manually hash the password since the pre-save hook was removed
       const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt); 
+      user.password = await bcrypt.hash(password, salt);
     }
 
     const updatedUser = await user.save({ validateBeforeSave: false });
-    
-    res.status(200).json({ 
-      _id: updatedUser._id, 
-      name: updatedUser.name, 
-      email: updatedUser.email, 
+
+    res.status(200).json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
       phone: updatedUser.phone,
       role: updatedUser.role,
-      status: updatedUser.status
+      status: updatedUser.status,
+      accessUrl: buildAccessUrl(updatedUser._id)
     });
   } catch (error) {
     console.error(error);
@@ -122,7 +140,7 @@ const updateUser = async (req, res) => {
   }
 };
 
-// DELETE /api/users/:id - Delete a user
+// DELETE /api/users/:id
 const deleteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -135,20 +153,16 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// POST /api/users/:id/access-link - ADMIN: generate a fresh link (old link stops working)
+// POST /api/users/:id/access-link - returns the same permanent link
 const regenerateAccessLink = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const { token, hash } = generateAccessToken();
-    user.accessTokenHash = hash;
-    await user.save({ validateBeforeSave: false });
-
-    res.status(200).json({ accessUrl: buildAccessUrl(token) });
+    res.status(200).json({ accessUrl: buildAccessUrl(user._id) });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Error generating access link' });
+    res.status(500).json({ message: 'Error fetching access link' });
   }
 };
 
@@ -156,10 +170,12 @@ const regenerateAccessLink = async (req, res) => {
 // Returns the SAME shape as /auth/login: { user, token }
 const accessByToken = async (req, res) => {
   try {
-    const hash = hashToken(req.params.token);
-    const user = await User.findOne({ accessTokenHash: hash, role: 'user' }).select('-password');
+    const userId = verifyAccessToken(req.params.token);
+    if (!userId) return res.status(404).json({ message: 'Invalid or expired link' });
 
+    const user = await User.findOne({ _id: userId, role: 'user' }).select('-password');
     if (!user) return res.status(404).json({ message: 'Invalid or expired link' });
+
     if (user.status && user.status !== 'Active') {
       return res.status(403).json({ message: 'Your account is not active' });
     }

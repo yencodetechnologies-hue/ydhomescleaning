@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
   FiEye, FiEyeOff, FiEdit2, FiTrash2, FiPlus, FiSearch, 
-  FiX, FiUsers, FiChevronLeft, FiChevronRight 
+  FiX, FiUsers, FiChevronLeft, FiChevronRight, FiCopy, FiCheck
 } from 'react-icons/fi';
 import AdminLayout from '../components/AdminLayout';
 import { API_BASE_URL } from '../config';
@@ -14,10 +14,12 @@ export default function UsersManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 10;
 
+  // Which row just had its link copied (for the tick icon)
+  const [copiedId, setCopiedId] = useState(null);
+
   // Modal State
   const [modalType, setModalType] = useState('none');
   
-  // Form State (Removed 'role' input completely, defaults backend to 'user')
   const initialForm = { _id: null, name: '', email: '', phone: '', password: '', confirmPassword: '', status: 'Active' };
   const [formData, setFormData] = useState(initialForm);
   const [showPassword, setShowPassword] = useState(false);
@@ -27,13 +29,73 @@ export default function UsersManagement() {
     fetchUsers();
   }, []);
 
-  const fetchUsers = async () => {
+const fetchUsers = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users`, { cache: 'no-store' });
+    const data = await response.json();
+    const list = Array.isArray(data) ? data : [];
+
+    // Show the table immediately
+    setUsers(list);
+
+    // Fallback: for any user that came back without a link, fetch it
+    const missing = list.filter((u) => !u.accessUrl);
+    if (missing.length > 0) {
+      const links = await Promise.all(
+        missing.map(async (u) => {
+          try {
+            const r = await fetch(`${API_BASE_URL}/users/${u._id}/access-link`, { method: 'POST' });
+            if (!r.ok) return null;
+            const d = await r.json();
+            return { id: u._id, accessUrl: d.accessUrl };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          const found = links.find((l) => l && l.id === u._id);
+          return found ? { ...u, accessUrl: found.accessUrl } : u;
+        })
+      );
+    }
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  }
+};
+
+  // --- Copy access link ---
+  const copyText = async (text) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/users`);
-      const data = await response.json();
-      setUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for non-HTTPS / older browsers
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      return true;
+    } catch (err) {
+      console.error('Copy failed:', err);
+      return false;
+    }
+  };
+
+  const handleCopyLink = async (userId, url) => {
+    const ok = await copyText(url);
+    if (ok) {
+      setCopiedId(userId);
+      setTimeout(() => setCopiedId((curr) => (curr === userId ? null : curr)), 2000);
+    } else {
+      alert('Could not copy. Please select and copy the link manually.');
     }
   };
 
@@ -58,7 +120,16 @@ export default function UsersManagement() {
   const openModal = (type, user = null) => {
     setModalType(type);
     if (user) {
-      setFormData({ ...user, password: '', confirmPassword: '' });
+      // Only copy the editable fields (leave accessUrl out of the form)
+      setFormData({
+        _id: user._id,
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        status: user.status || 'Active',
+        password: '',
+        confirmPassword: ''
+      });
     } else {
       setFormData(initialForm);
     }
@@ -87,6 +158,7 @@ export default function UsersManagement() {
         });
         if (response.ok) {
           const newUser = await response.json();
+          // newUser contains accessUrl (same link that was emailed)
           setUsers([newUser, ...users]);
           closeModal();
           setCurrentPage(1);
@@ -103,7 +175,12 @@ export default function UsersManagement() {
         });
         if (response.ok) {
           const updatedUser = await response.json();
-          setUsers(users.map(u => u._id === updatedUser._id ? updatedUser : u));
+          // Merge, and never let a missing accessUrl wipe the existing one
+          setUsers(users.map(u =>
+            u._id === updatedUser._id
+              ? { ...u, ...updatedUser, accessUrl: updatedUser.accessUrl || u.accessUrl }
+              : u
+          ));
           closeModal();
         } else {
           const err = await response.json();
@@ -116,7 +193,7 @@ export default function UsersManagement() {
   };
 
   const handleDelete = async (id) => {
-    if(window.confirm("Are you sure you want to delete this user?")) {
+    if (window.confirm("Are you sure you want to delete this user?")) {
       try {
         const response = await fetch(`${API_BASE_URL}/users/${id}`, { method: 'DELETE' });
         if (response.ok) {
@@ -131,7 +208,6 @@ export default function UsersManagement() {
     }
   };
 
-  // Show the Confirm Password field (same condition as before)
   const showConfirmField = modalType === 'add' || formData.password.length > 0;
 
   return (
@@ -180,40 +256,76 @@ export default function UsersManagement() {
                 <th>USER INFO</th>
                 <th>PHONE</th>
                 <th>STATUS</th>
+                <th>ACCESS LINK</th>
                 <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {currentUsers.length === 0 ? (
-                <tr><td colSpan="5" style={{textAlign: 'center', padding: '2rem'}}>No users found.</td></tr>
+                <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>No users found.</td></tr>
               ) : (
-                currentUsers.map((user, index) => (
-                  <tr key={user._id}>
-                    <td style={{ color: 'var(--text-muted)', fontWeight: '500' }}>
-                      {(currentPage - 1) * usersPerPage + index + 1}
-                    </td>
-                    <td>
-                      <div className="type-cell" style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span className="type-name" style={{ fontWeight: '600', color: 'var(--text-dark)' }}>{user.name}</span>
-                        <span className="type-sub" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{user.email}</span>
-                      </div>
-                    </td>
-                    <td>{user.phone}</td>
-                    <td>
-                      <span className={`status-badge badge-${user.status?.toLowerCase() === 'inactive' ? 'inactive' : 'active'}`}>
-                        <span className={`pill-dot dot-${user.status?.toLowerCase() === 'inactive' ? 'red' : 'green'}`}></span>
-                        {user.status || 'Active'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-btns">
-                        <button className="act-btn btn-view" onClick={() => openModal('view', user)} title="View"><FiEye size={16} /></button>
-                        <button className="act-btn btn-edit" onClick={() => openModal('edit', user)} title="Edit"><FiEdit2 size={16} /></button>
-                        <button className="act-btn btn-delete" onClick={() => handleDelete(user._id)} title="Delete"><FiTrash2 size={16} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                currentUsers.map((user, index) => {
+                  const link = user.accessUrl;
+                  const isCopied = copiedId === user._id;
+
+                  return (
+                    <tr key={user._id}>
+                      <td style={{ color: 'var(--text-muted)', fontWeight: '500' }}>
+                        {(currentPage - 1) * usersPerPage + index + 1}
+                      </td>
+                      <td>
+                        <div className="type-cell" style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span className="type-name" style={{ fontWeight: '600', color: 'var(--text-dark)' }}>{user.name}</span>
+                          <span className="type-sub" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{user.email}</span>
+                        </div>
+                      </td>
+                      <td>{user.phone}</td>
+                      <td>
+                        <span className={`status-badge badge-${user.status?.toLowerCase() === 'inactive' ? 'inactive' : 'active'}`}>
+                          <span className={`pill-dot dot-${user.status?.toLowerCase() === 'inactive' ? 'red' : 'green'}`}></span>
+                          {user.status || 'Active'}
+                        </span>
+                      </td>
+                      <td>
+                        {link ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '260px' }}>
+                            <span
+                              title={link}
+                              style={{
+                                fontSize: '12px',
+                                color: 'var(--text-muted)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flex: 1,
+                                minWidth: 0
+                              }}
+                            >
+                              {link}
+                            </span>
+                            <button
+                              className="act-btn btn-view"
+                              onClick={() => handleCopyLink(user._id, link)}
+                              title={isCopied ? 'Copied!' : 'Copy link'}
+                              style={{ flexShrink: 0 }}
+                            >
+                              {isCopied ? <FiCheck size={16} /> : <FiCopy size={16} />}
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="action-btns">
+                          <button className="act-btn btn-view" onClick={() => openModal('view', user)} title="View"><FiEye size={16} /></button>
+                          <button className="act-btn btn-edit" onClick={() => openModal('edit', user)} title="Edit"><FiEdit2 size={16} /></button>
+                          <button className="act-btn btn-delete" onClick={() => handleDelete(user._id)} title="Delete"><FiTrash2 size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -261,7 +373,6 @@ export default function UsersManagement() {
               </div>
             ) : (
               <form onSubmit={handleSubmit}>
-                {/* Two fields per row (stacks to one column on small screens) */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                 
                   <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -287,7 +398,6 @@ export default function UsersManagement() {
                     </select>
                   </div>
 
-                  {/* Password takes the full row when Confirm Password is not shown */}
                   <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative', gridColumn: showConfirmField ? 'auto' : '1 / -1' }}>
                     <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-dark)' }}>
                       {modalType === 'edit' ? 'New Password (Leave blank to keep current)' : 'Password'}
