@@ -1,0 +1,56 @@
+/* --- Clean Lightbox Image Modal (Forced Overlay) --- */
+.image-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  backdrop-filter: blur(5px);
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 999999 !important; /* Forces it over the sidebar */
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.image-modal-content {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.image-modal-close-btn {
+  position: absolute;
+  top: -45px;
+  right: 0px;
+  background: white !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000000 !important;
+}
+
+.image-modal-close-btn:hover {
+  background: #FEE2E2 !important;
+  color: #DC2626 !important;
+}
+
+.image-modal-img {
+  max-width: 100%;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+.thumbnail-overlay{height:60px;width:60px;}

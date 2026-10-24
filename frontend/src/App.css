@@ -1,0 +1,50 @@
+body{
+  margin: 0px;
+  padding:0px;
+}
+/* --- GLOBAL BUTTON STYLES --- */
+.btn-primary {
+  padding: 0.65rem 1.5rem;
+  background-color: var(--sidebar-bg, #3B0E7D); /* Falls back to purple if variable is missing */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(59, 14, 125, 0.2);
+  font-family: inherit;
+}
+
+.btn-primary:hover { 
+  background-color: #5B21B6; /* Brighter contrast purple */
+  box-shadow: 0 4px 8px rgba(91, 33, 182, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  background-color: #2E0B63; /* Darker on click */
+}
+
+/* Optional: A global outline button for "Cancel" or "Secondary" actions */
+.btn-outline {
+  padding: 0.65rem 1.5rem;
+  background-color: transparent;
+  color: var(--sidebar-bg, #3B0E7D);
+  border: 1px solid var(--sidebar-bg, #3B0E7D);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline:hover {
+  background-color: #F5F3FF;
+}

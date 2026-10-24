@@ -1,0 +1,160 @@
+.qr-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+/* --- THE POSTER DESIGN --- */
+.qr-poster {
+  background-color: #195754; /* Your requested dark teal color */
+  width: 100%;
+  max-width: 450px;
+  border-radius: 12px;
+  overflow: hidden; /* Ensures footer stays inside rounded corners */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  margin-bottom: 30px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.qr-poster-content {
+  padding: 20px 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.qr-poster-header {
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+/* Simulated Logo */
+.qr-poster-logo {
+  color: white;
+  text-align: center;
+  margin-bottom: 40px;
+}
+.qr-poster-logo h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+
+/* QR Code Container (White Box) */
+.qr-code-white-box {
+  background: white;
+  padding: 25px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  margin-bottom: 35px;
+}
+
+.qr-action-text {
+  color: white;
+  font-size: 34px;
+  font-weight: 800;
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+/* Poster Footer */
+.qr-poster-footer {
+  background-color: white;
+  width: 100%;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+
+.powered-by-text {
+  color: #1E293B;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* Simulated Yencode Logo */
+.yencode-badge {
+  background: #0F172A;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.yencode-badge-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.yencode-title {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+.yencode-subtitle {
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 1.5px;
+  color: #94A3B8;
+  margin-top: 3px;
+}
+
+/* --- ACTION BUTTONS --- */
+.qr-actions-container {
+  display: flex;
+  gap: 15px;
+}
+
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: white;
+  background: #475569;
+}
+.print-btn.btn-blue {
+  background: #2563EB;
+}
+.print-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Hide action buttons during browser printing */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #downloadable-qr-card, #downloadable-qr-card * {
+    visibility: visible;
+  }
+  #downloadable-qr-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0; /* Optional: removes corners for physical print */
+    box-shadow: none;
+  }
+}
