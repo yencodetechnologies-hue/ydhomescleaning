@@ -17,7 +17,7 @@ app.use(cors({
  origin: [
     'http://localhost:5173', 
     'http://localhost:5174',
-    'http://192.168.100.233:5173', // <-- Allows your mobile frontend to connect
+    'http://192.168.100.233:5173', 
     'http://192.168.100.233:5174'  // <-- Just in case Vite uses this port
   ],
   credentials: true
