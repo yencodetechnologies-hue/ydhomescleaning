@@ -35,7 +35,7 @@ async function sendEmail({ to, subject, html, text }) {
   if (!subject) throw new Error('sendEmail: "subject" is required')
 
   const info = await transporter.sendMail({
-    from: `"YenCode Careers" <${process.env.SMTP_USER}>`,
+    from: `"YDHome Clean" <${process.env.SMTP_USER}>`,
     to,
     subject,
     text,
