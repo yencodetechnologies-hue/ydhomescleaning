@@ -18,7 +18,8 @@ app.use(cors({
     'http://localhost:5173', 
     'http://localhost:5174',
     'http://192.168.100.233:5173', 
-    'http://192.168.100.233:5174'  // <-- Just in case Vite uses this port
+    'http://192.168.100.233:5174',
+    'https://ydhomescleaning.vercel.app'
   ],
   credentials: true
 }));
